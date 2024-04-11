@@ -27,6 +27,7 @@ predict.py:
 --model Path to saved trained model
 ```
 example:
+```
 python train_model.py --train_snp /train_snp.csv --train_phe /train_phe.csv --model /out
 python predict.py --test_snp /test_snp.csv --test_phe /test_phe.csv --model /out/model.ph --out /out
 ```
