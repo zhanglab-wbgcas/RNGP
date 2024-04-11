@@ -1,7 +1,7 @@
 # plantGPT
 ># Introduction
 
-plantGPT(a transformer-based model for genomic prediction in plant breeding), a Transformer-based model, can be used to predict phenotypes using genomic data.
+plantGPT(a plant genomic prediction model based on Transformer), a Transformer-based model, can be used to predict phenotypes using genomic data.
 
 Instructions and examples are provided in the following tutorials.
 ># Requirement
@@ -31,8 +31,5 @@ The latent representations for each modality  are saved in the log/mod1.npy,log/
 
 ># Tutorial
 
-## processsed Data
-
-## The scRNA-seq datasets pre-processing code
 
 ># Paper Link
