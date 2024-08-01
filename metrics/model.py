@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 from torch.utils.data import (DataLoader,Dataset)
 import numpy as np
 import random
-import torch.optim.lr_scheduler as lr_scheduler  # 导入学习率调度器
+import torch.optim.lr_scheduler as lr_scheduler  
 from torch.utils.data import  DataLoader
 from retnet import RetNet
 from sklearn.metrics import mean_squared_error
