@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 from torch.utils.data import (DataLoader,Dataset)
 import numpy as np
 import random
-import torch.optim.lr_scheduler as lr_scheduler  # 导入学习率调度器
+import torch.optim.lr_scheduler as lr_scheduler 
 from torch.utils.data import  DataLoader
 from retnet import RetNet
 from sklearn.metrics import mean_squared_error
@@ -40,7 +40,7 @@ class EarlyStopping:
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
-        self.best_score = -np.Inf  # 初始化为一个负数
+        self.best_score = -np.Inf  
         self.early_stop = False
         self.val_loss_min = np.Inf
         self.delta = delta
@@ -175,7 +175,7 @@ def train_model(features,d_model,layers, hidden_size, ffn_size,heads, batch_size
 
     best_coe = -float('inf') 
     best_model_state = None
-    y_val = y_val.iloc[:, 0]  # 提取 '0' 列的值并转换为一维数组
+    y_val = y_val.iloc[:, 0]  
     for epoch in range(n_epochs):
        
         model.train()
@@ -198,7 +198,7 @@ def train_model(features,d_model,layers, hidden_size, ffn_size,heads, batch_size
         model.eval()
         
         preds = []
-        with torch.no_grad():  # 禁用梯度计算
+        with torch.no_grad():  
             for batch in tqdm(val_loader):
                 data, _ = batch
                 data = data.to(device)
@@ -214,7 +214,7 @@ def train_model(features,d_model,layers, hidden_size, ffn_size,heads, batch_size
         if coe > best_coe:
             best_coe = coe
             best_model_state = model.state_dict().copy() 
-        early_stopping.early_stopping(coe)  # 传入验证集上的 coe 分数
+        early_stopping.early_stopping(coe)  
 
         scheduler.step(coe)
         if early_stopping.early_stop:
@@ -259,14 +259,14 @@ def pre_model(features,d_model,layers, hidden_size, ffn_size,heads,batch_sizes,x
     model.eval()
 
     preds = []
-    with torch.no_grad():  # 禁用梯度计算
+    with torch.no_grad():  
         for batch in tqdm(test_loader):
             data, _ = batch
             data = data.to(device)
             batch_preds = model(data)
             preds.extend(batch_preds.cpu().numpy())
     preds = np.concatenate(preds, axis=0)
-    y_test = y_test.iloc[:, 0]  # 提取列值并转换为一维数组
+    y_test = y_test.iloc[:, 0] 
     coe = np.corrcoef(y_test, preds)[0, 1]
     mse = mean_squared_error(y_test, preds)
     print(f"Test coe = {coe:.6f} ")
