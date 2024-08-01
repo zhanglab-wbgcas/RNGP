@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from retention import MultiScaleRetention
-layers=3
+
 class RetNet(nn.Module):
     def __init__(self, layers, hidden_dim, ffn_size, heads, double_v_dim=False):
         super(RetNet, self).__init__()
