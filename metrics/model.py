@@ -99,7 +99,7 @@ class DataSet(Dataset):
         return data, label
 
 
-class PlantGPT(nn.Module):
+class plantGPT(nn.Module):
     def __init__(self, input_dim, layers, hidden_size, ffn_size, nhead=4, d_model=64):
         super().__init__()
         self.retnet = RetNet(layers, hidden_size, ffn_size, heads=nhead, double_v_dim=True)
@@ -154,7 +154,7 @@ def train_model(windows, d_model, layers, hidden_size, ffn_size, heads, batch_si
 
     early_stopping = EarlyStopping(patience=10, verbose=True, delta=0.001)
     
-    model = PlantGPT(input_dim=d_model, layers=layers, hidden_size=hidden_size, ffn_size=ffn_size, nhead=heads, d_model=d_model)
+    model = plantGPT(input_dim=d_model, layers=layers, hidden_size=hidden_size, ffn_size=ffn_size, nhead=heads, d_model=d_model)
     model.to(device)
 
     # Setting loss function
@@ -237,7 +237,7 @@ def pre_model(windows, d_model, layers, hidden_size, ffn_size, heads, batch_size
     d_model = d_model    
     x_test, y_test = getXY(windows, x_test, y_test)
     
-    model = PlantGPT(input_dim=d_model, layers=layers, hidden_size=hidden_size, ffn_size=ffn_size, nhead=heads, d_model=d_model)
+    model = plantGPT(input_dim=d_model, layers=layers, hidden_size=hidden_size, ffn_size=ffn_size, nhead=heads, d_model=d_model)
     model.to(device)
     saved_state_dict = torch.load(model_path)
     model.load_state_dict(saved_state_dict['model'])
