@@ -6,47 +6,44 @@ warnings.filterwarnings('ignore')
 import math
 import pandas as pd
 from tqdm.auto import tqdm
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import (DataLoader,Dataset)
 import numpy as np
 import random
-import torch.optim.lr_scheduler as lr_scheduler 
-from torch.utils.data import DataLoader
+import torch.optim.lr_scheduler as lr_scheduler  # 导入学习率调度器
+from torch.utils.data import  DataLoader
 from retnet import RetNet
-from sklearn.metrics import mean_squared_error, mean_absolute_error
-import os
+from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_error
 
-# Ensure CUDA launch blocking
-os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
-
-# Check if CUDA is available and set the device accordingly
+# Check for GPU availability and set device accordingly
 if torch.cuda.is_available():
     device = torch.device("cuda")
     print(f"GPU ({torch.cuda.get_device_name(0)}) is available and will be used.")
 else:
     device = torch.device("cpu")
     print("GPU is not available; falling back to CPU.")
-
 # Function to set the same seed for reproducibility
 def same_seeds(seed):
     random.seed(seed)
+    # Numpy
     np.random.seed(seed)
+    # Torch
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
-
-# EarlyStopping class to handle early stopping during training
+# EarlyStopping class to monitor validation score and stop training if no improvement
 class EarlyStopping:
     def __init__(self, patience=10, verbose=False, delta=0):
-        self.patience = patience  
-        self.verbose = verbose  
-        self.counter = 0  
+        self.patience = patience
+        self.verbose = verbose
+        self.counter = 0
         self.best_score = -np.Inf  
-        self.early_stop = False  
-        self.val_loss_min = np.Inf  
-        self.delta = delta  
+        self.early_stop = False
+        self.val_loss_min = np.Inf
+        self.delta = delta
 
     def early_stopping(self, val_score):
         if val_score > self.best_score + self.delta:
@@ -57,34 +54,33 @@ class EarlyStopping:
 
         if self.counter >= self.patience:
             self.early_stop = True
+# Function to prepare features and labels from SNP data and phenotype
+def getXY(features,snp, phenotype):
 
-# Function to preprocess SNP and phenotype data and get features and labels
-def getXY(windows, snp, phenotype):
     snp_list = []
     for i in range(len(snp)):
         sample = snp.iloc[i, :]
+
         feature = []
         or_length = len(sample)
-        if windows % 2 == 1:
-            windows = windows + 1
-        padded_sample = np.pad(sample, (0, windows - or_length if or_length < windows else 0), mode='constant')
-        length = len(padded_sample)
-        for k in range(0, length, windows):
-            if (k + windows <= length):
-                a = padded_sample[k:k + windows]
-            else:
-                a = padded_sample[length - windows:length]
-            feature.append(a)
+        if features %2 == 1:
+            features = features + 1
+        padded_sample = np.pad(sample, (0, features - or_length if or_length < features else 0), mode='constant')
+        
+        feature.append(padded_sample)
         feature = np.asarray(feature, dtype=np.float32)
+
         snp_list.append(feature)
 
-    snp_list = np.asarray(snp_list)  # (n_samples, gap_num, gap)
+    snp_list = np.asarray(snp_list) #(n_samples, 1, features)
+    
     y_train = phenotype.values  
     y_train = y_train.astype(np.float32)
     y_train = pd.DataFrame(y_train)
+
     return snp_list, y_train
 
-# Custom dataset class to handle data and labels
+# Custom Dataset class to handle data loading
 class DataSet(Dataset):
     def __init__(self, data, label):
         self.data = data
@@ -97,39 +93,41 @@ class DataSet(Dataset):
         data = torch.tensor(self.data[index])
         label = torch.tensor(self.label.iloc[index], dtype=torch.float32)
         return data, label
-
-
+    
+# PlantGPT class that defines the model architecture
 class plantGPT(nn.Module):
-    def __init__(self, input_dim, layers, hidden_size, ffn_size, nhead=4, d_model=64):
+    def __init__(self, input_dim,layers,hidden_size,ffn_size,nhead=4, d_model=64):
         super().__init__()
         self.retnet = RetNet(layers, hidden_size, ffn_size, heads=nhead, double_v_dim=True)
-        if d_model > 200:
+        if d_model>200:
             self.pred = nn.Sequential(
                 nn.Linear(d_model, d_model),
                 nn.GELU(),
-                nn.Linear(d_model, d_model // 2),
+                nn.Linear(d_model, d_model//2),
                 nn.GELU(),
-                nn.Linear(d_model // 2, d_model // 4),
+                nn.Linear(d_model//2,d_model//4),
                 nn.GELU(),
-                nn.Linear(d_model // 4, 1),
+                nn.Linear(d_model//4, 1),
             )
         else:
             self.pred = nn.Sequential(
                 nn.Linear(d_model, 128),
                 nn.Linear(128, 1)
             )
-
     def forward(self, mels):
         x = mels.permute(1, 0, 2)
         x = self.retnet(x)
         x = x.transpose(0, 1)
-        # Mean pooling
-        x = x.mean(dim=1)
+        x = x.squeeze(1)
         x = self.pred(x)
         return x
-
-# Function to train the model
-def train_model(windows, d_model, layers, hidden_size, ffn_size, heads, batch_sizes, x_train, y_train, x_val, y_val, lr, model_path):
+    
+# Function to train the model with given parameters
+def train_model(features,d_model,layers, hidden_size, ffn_size,heads, batch_sizes, x_train, y_train, x_val, y_val, lr, model_path):
+    """
+    This function trains the plantGPT model with the provided parameters and data.
+    It includes early stopping and learning rate scheduling.
+    """
     """
     Parameters:
     - windows: Window size for segmenting the SNP data.
@@ -145,16 +143,18 @@ def train_model(windows, d_model, layers, hidden_size, ffn_size, heads, batch_si
     - y_val: Validation labels.
     - lr: Learning rate for the optimizer.
     - model_path: Path to save the best model.
+    - n_epochs: the times of Training
+
     """
     d_model = d_model
     n_epochs = 25
 
-    x_train, y_train = getXY(windows, x_train, y_train)
-    x_val, y_val = getXY(windows, x_val, y_val)
+    x_train, y_train = getXY(features, x_train, y_train)
+    x_val, y_val = getXY(features, x_val, y_val)
 
     early_stopping = EarlyStopping(patience=10, verbose=True, delta=0.001)
     
-    model = plantGPT(input_dim=d_model, layers=layers, hidden_size=hidden_size, ffn_size=ffn_size, nhead=heads, d_model=d_model)
+    model = plantGPT(input_dim=d_model,layers=layers,hidden_size =hidden_size,ffn_size=ffn_size,nhead=heads, d_model=d_model)
     model.to(device)
 
     # Setting loss function
@@ -172,10 +172,12 @@ def train_model(windows, d_model, layers, hidden_size, ffn_size, heads, batch_si
     val_dataset = DataSet(data=x_val, label=y_val)
     val_loader = DataLoader(val_dataset, batch_size=batch_sizes, shuffle=False, pin_memory=True)
 
+
     best_coe = -float('inf') 
     best_model_state = None
     y_val = y_val.iloc[:, 0]  
     for epoch in range(n_epochs):
+       
         model.train()
         train_loss = []
         
@@ -190,11 +192,13 @@ def train_model(windows, d_model, layers, hidden_size, ffn_size, heads, batch_si
             train_loss.append(loss.item())
             
         train_loss = sum(train_loss) / len(train_loss)
+            
         print(f"[ Train | {epoch + 1:03d}/{n_epochs:03d} ] loss = {train_loss:.5f}")
         
         model.eval()
+        
         preds = []
-        with torch.no_grad():  # Disable gradient calculation
+        with torch.no_grad():  
             for batch in tqdm(val_loader):
                 data, _ = batch
                 data = data.to(device)
@@ -210,7 +214,7 @@ def train_model(windows, d_model, layers, hidden_size, ffn_size, heads, batch_si
         if coe > best_coe:
             best_coe = coe
             best_model_state = model.state_dict().copy() 
-        early_stopping.early_stopping(coe)  # Pass the coe score on the validation set
+        early_stopping.early_stopping(coe)  
 
         scheduler.step(coe)
         if early_stopping.early_stop:
@@ -225,36 +229,44 @@ def train_model(windows, d_model, layers, hidden_size, ffn_size, heads, batch_si
         torch.save(save_dict, model_path)
 
 # Function to predict using the trained model
-def pre_model(windows, d_model, layers, hidden_size, ffn_size, heads, batch_sizes, x_test, y_test, model_path, output_path_coe=None, output_path_mse=None):
+
+def pre_model(features,d_model,layers, hidden_size, ffn_size,heads,batch_sizes,x_test,y_test,model_path,output_path_coe=None,output_path_mse=None):
+    """
+    This function predicts using the trained plantGPT model and evaluates its performance
+    on the test data. It can also save the results to the specified output paths.
+    """
     """
     Parameters:
     - x_test: Test features.
     - y_test: Test labels.
     - model_path: Path to load the trained model.
-    - output_path_coe: Path to save the coefficient results.
-    - output_path_mse: Path to save the MSE results.
+    - output_path_coe: Path to save the coefficient results, default=None.
+    - output_path_mse: Path to save the MSE results, default=None.
     """
-    d_model = d_model    
-    x_test, y_test = getXY(windows, x_test, y_test)
+
+    d_model = d_model
+    x_test,y_test=getXY(features,x_test,y_test)
     
-    model = plantGPT(input_dim=d_model, layers=layers, hidden_size=hidden_size, ffn_size=ffn_size, nhead=heads, d_model=d_model)
+    model = plantGPT(input_dim=d_model, layers=layers,hidden_size =hidden_size,ffn_size=ffn_size,nhead=heads, d_model=d_model)
     model.to(device)
     saved_state_dict = torch.load(model_path)
     model.load_state_dict(saved_state_dict['model'])
 
-    test_dataset = DataSet(data=x_test, label=y_test)
-    test_loader = DataLoader(test_dataset, batch_size=batch_sizes, shuffle=False, pin_memory=True)
+    test_dataset = DataSet(data=x_test,label =y_test)
+    test_loader = DataLoader(test_dataset, batch_size=batch_sizes, shuffle=False,
+                                pin_memory=True)
 
     model.eval()
+
     preds = []
-    with torch.no_grad():  # Disable gradient calculation
+    with torch.no_grad():  
         for batch in tqdm(test_loader):
             data, _ = batch
             data = data.to(device)
             batch_preds = model(data)
             preds.extend(batch_preds.cpu().numpy())
     preds = np.concatenate(preds, axis=0)
-    y_test = y_test.iloc[:, 0]  
+    y_test = y_test.iloc[:, 0] 
     coe = np.corrcoef(y_test, preds)[0, 1]
     mse = mean_squared_error(y_test, preds)
     print(f"Test coe = {coe:.6f} ")
@@ -262,4 +274,4 @@ def pre_model(windows, d_model, layers, hidden_size, ffn_size, heads, batch_size
     #with open(output_path_coe, 'a') as f:
         #f.write(f"{coe}\n")
     #with open(output_path_mse, 'a') as f:
-        #f.write(f"{mse}\n")
+        #f.write(f"{mse}\n") 
