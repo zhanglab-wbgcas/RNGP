@@ -1,9 +1,8 @@
-# plantGPT
+# RNGP
 ># Introduction
 
-plantGPT(a plant genomic prediction model based on Transformer), a Transformer-based model, can be used to predict phenotypes using genomic data.
+RNGP: a plant genomic prediction model based on Retentive Network Instructions and examples are provided in the following tutorials
 
-Instructions and examples are provided in the following tutorials.
 ># Requirement
 ```
 Python 3.9.18
