@@ -1,7 +1,9 @@
 # RNGP
 ># Introduction
 
-RNGP: a plant genomic prediction model based on Retentive Network Instructions and examples are provided in the following tutorials
+RNGP: a plant genomic prediction model based on Retentive Network 
+
+Instructions and examples are provided in the following tutorials
 
 ># Requirement
 ```
